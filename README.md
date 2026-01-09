@@ -1,79 +1,85 @@
 # SENTINEL PRIME v2.0
-### Institutional Risk Governance Engine: AI Sentiment + Quantitative Telemetry
+![Supabase Custom Badge](https://img.shields.io/badge/Cloud_Node-Active-green?style=for-the-badge&logo=supabase)
+![Streamlit Badge](https://img.shields.io/badge/Dashboard-Live-FF4B4B?style=for-the-badge&logo=streamlit)
 
-**Sentinel Prime** is an institutional-grade risk governance layer designed to operate above active trading strategies. It enforces capital preservation by synchronizing real-time quantitative volatility (Z-Scores) with AI-driven narrative intelligence (FinBERT).
+### Institutional Risk Governance: Cloud-Native AI Sentiment & Quantitative Telemetry
+
+**Live Dashboard:** [Access Sentinel Command](https://sentinel-prime-governance.streamlit.app/)
+
+**Sentinel Prime** is a distributed risk governance layer designed to operate above active trading strategies. It synchronizes local GPU-accelerated AI processing (Edge Computing) with a Global Cloud Vault (Supabase) to enforce capital preservation through real-time volatility analysis and narrative intelligence.
 
 ---
 
 ## 🏛️ Governance Philosophy
-In high-stakes environments, markets fail slowly, but human judgment fails suddenly. Sentinel Prime exists to:
-1. **Detect Regime Instability:** Real-time classification of market states.
-2. **Validate Narratives:** Cross-referencing price anomalies against global news sentiment.
-3. **Enforce Behavioral Circuit Breakers:** Implementing automated "Cognitive Cooldowns" when divergence exceeds safe thresholds.
+In high-stakes environments, human judgment often fails at the exact moment of market instability. Sentinel Prime enforces a "Triple-Lock" security protocol:
+1. **Edge Intelligence:** Local FinBERT analysis for zero-latency sentiment extraction.
+2. **Cloud Persistence:** Secure, centralized SQL node ensuring a unified "Source of Truth" for global monitoring.
+3. **Predictive Enforcement:** ML-driven look-ahead metrics to anticipate regime shifts before they occur.
 
-
+[Image of a cloud computing architecture for an AI application]
 
 ---
 
 ## 🧠 System Architecture
 
-### 1. Market Regime Classification (Quant Layer)
-The engine performs rolling statistical analysis of price volatility, classifying market regimes into:
-* **STABLE:** Low dispersion, high predictability.
-* **STRESS:** Elevated volatility, requiring reduced position sizing.
-* **ANOMALY:** Extreme statistical deviation (Z-Score > 3.0).
+### 1. Edge Engine (Quant & NLP)
+The core engine runs on local hardware to leverage GPU acceleration for:
+* **Market Regime Classification:** Statistical Z-Score modeling to classify states as STABLE, STRESS, or ANOMALY.
+* **Narrative Validation:** Real-time sentiment extraction from institutional news feeds via **FinBERT Transformers**.
 
-### 2. AI Sentiment Divergence (R&D Layer)
-Using **FinBERT (NLP Transformers)**, the system analyzes live feeds from Yahoo Finance, Reuters, and Kitco.
-* **Ghost Move Detection:** If the Quant Layer detects an **ANOMALY** but the AI Layer reports **NEUTRAL** sentiment, the system flags a "Narrative Divergence" and triggers a protective lock.
+### 2. Cloud Vault (Supabase Integration)
+The system utilizes a **Relational Cloud Infrastructure** for data integrity:
+* **Live Sync:** Telemetry is pushed to a remote SQL node every 30 seconds.
+* **Persistence:** Historical audit logs are stored securely, independent of the local machine's state.
 
-### 3. Predictive Intelligence (ML Layer)
-A Linear Regression module forecasts the next 30 seconds of volatility based on the previous 10 data points, providing the operator with a "Look-Ahead" risk metric.
+### 3. Predictive Command Center (ML Layer)
+The dashboard implements a **Linear Regression** engine for real-time trend forecasting:
+* **30s Forecast:** Analyzes a rolling window of the last 10 cloud entries to predict immediate volatility.
+* **Visual Intelligence:** Dynamic Plotly streams cross-referencing price dispersion against AI sentiment.
+
+[Image of a software architecture diagram showing core engines connecting to advanced AI and Cloud layers]
 
 ---
 
-## 📂 Verified Project Structure
+## 📂 Project Structure
 ```text
 SENTINEL_PRIME_GOVERNANCE/
-├── ai_research/             # Deep Learning Research
+├── ai_research/             # Deep Learning & Edge Engine
 │   └── RnD/scripts/research/ai_sentiment_sentinel.py
-├── dashboard/               # Visual Intelligence Layer
+├── dashboard/               # Cloud Command Center (Streamlit)
 │   └── RnD/scripts/research/dashboard.py
 ├── engine/                  # Core Quantitative Logic
 │   ├── live_price_sentinel.py
 │   └── kill_switch.py
-├── logs/                    # Shared Centralized Data Node
-│   └── integrated_audit.csv
-├── requirements.txt         # Environment Passport
-└── .gitignore               # Institutional Standards
+├── .streamlit/              # Cloud Configuration
+│   └── secrets.toml         # Secure API Credentials
+├── requirements.txt         # Environment Passport (Cloud Standard)
+└── .gitignore               # Security & Hygiene
 🛠️ Technology Stack
-Language: Python 3.12+
-
 AI/NLP: PyTorch, Transformers (FinBERT)
+
+Database: Supabase (PostgreSQL)
 
 Predictive ML: Scikit-Learn (Linear Regression)
 
 Visualization: Streamlit, Plotly
 
-Data Handling: Pandas, NumPy, Shared-Node Logging
+Infrastructure: GitHub Actions, Streamlit Cloud
 
 🚀 Deployment & Usage
-Install Dependencies:
-
-Bash
-
-pip install -r requirements.txt
-Launch the Engine:
-
-Bash
+1. Launch the Edge Engine (ASUS TUF)
+PowerShell
 
 python ai_research/RnD/scripts/research/ai_sentiment_sentinel.py
-Launch the Command Center:
+2. Access Global Dashboard
+Access the Command Center via the live Streamlit URL to view real-time risk telemetry from any device.
+## 🛰️ Future Roadmap: Sentinel Prime v3.0
+The next phase of Sentinel Prime focuses on moving from **Governance-as-Monitoring** to **Governance-as-Execution**:
 
-Bash
+* **Adaptive Circuit Breakers:** Implementing a "Dynamic Slippage" engine that adjusts order execution speed based on the Live Z-Score.
+* **Narrative Clustering:** Upgrading the AI Layer to cluster global news into "Market Themes" using Unsupervised Learning (K-Means) to detect structural regime shifts.
+* **Distributed Governance Nodes:** Enabling multiple "Observer Engines" to push to the same Cloud Vault, allowing for cross-asset correlation analysis (e.g., Gold vs. USD divergence).
+* **Institutional Alerting:** Integrating **Twilio/SendGrid** via Supabase Edge Functions to send SMS/Email alerts the millisecond an ANOMALY state is triggered.
 
-streamlit run dashboard/RnD/scripts/research/dashboard.py
 👤 Author
-Hemant Verma Quantitative Risk Architect Building governance-first financial systems at the intersection of AI, Market Microstructure, and Human Integrity.
-
-⚠️ Disclaimer: This project is for research and governance design purposes. It does not constitute financial advice.
+Hemant Verma Quantitative Risk Architect Building governance-first financial systems at the intersection of AI, Market Microstructure, and Cloud Infrastructure.
