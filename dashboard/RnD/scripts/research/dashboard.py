@@ -46,19 +46,17 @@ def fetch_telemetry():
 @st.cache_data(ttl=5)
 def fetch_sentiment():
     try:
-        response = supabase.table("sentinel_intelligence")\
-            .select("*")\
-            .order("timestamp", desc=True)\
+        # FIX: Changed table name to 'sentinel_logs' to match your AI Engine
+        response = supabase.table("sentinel_logs")\
+            .select("sentiment")\
+            .order("id", desc=True)\
             .limit(1).execute()
         
         if response.data:
-            # This logic checks for both possible key names to ensure the connection
-            data = response.data[0]
-            # Try 'sentiment' first, then 'sentiment_score', otherwise default 0.5
-            val = data.get('sentiment', data.get('sentiment_score', 0.5))
-            return float(val)
+            # FIX: Using lowercase 'sentiment' to match your Supabase column
+            return float(response.data[0]['sentiment'])
         return 0.5
-    except Exception:
+    except Exception as e:
         return 0.5
 
 # --- 3. DIAGNOSTICS ---
