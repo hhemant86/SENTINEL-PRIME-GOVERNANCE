@@ -46,15 +46,16 @@ def fetch_telemetry():
 @st.cache_data(ttl=0)
 def fetch_sentiment():
     try:
-        # DIRECT LINK TO THE AI SENTINEL TABLE
+        # MISSION CRITICAL: Points to your existing Supabase table
         response = supabase.table("sentinel_intelligence")\
             .select("*")\
             .order("timestamp", desc=True)\
             .limit(1).execute()
         if response.data:
+            # Matches the column name in your Supabase table
             return response.data[0]['sentiment_score']
-        return 0.5  # Neutral fallback
-    except Exception:
+        return 0.5
+    except Exception as e:
         return 0.5
 
 # --- 3. DIAGNOSTICS ---
