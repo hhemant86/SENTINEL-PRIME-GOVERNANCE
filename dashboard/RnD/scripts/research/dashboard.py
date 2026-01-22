@@ -46,15 +46,17 @@ def fetch_telemetry():
 @st.cache_data(ttl=5)
 def fetch_sentiment():
     try:
-        # We fetch from the table your logs are confirmed syncing to
         response = supabase.table("sentinel_intelligence")\
             .select("*")\
             .order("timestamp", desc=True)\
             .limit(1).execute()
         
         if response.data:
-            # CHANGE THIS LINE: Your log says 'Sentiment', so we use that key
-            return response.data[0].get('sentiment', 0.5) 
+            # This logic checks for both possible key names to ensure the connection
+            data = response.data[0]
+            # Try 'sentiment' first, then 'sentiment_score', otherwise default 0.5
+            val = data.get('sentiment', data.get('sentiment_score', 0.5))
+            return float(val)
         return 0.5
     except Exception:
         return 0.5
