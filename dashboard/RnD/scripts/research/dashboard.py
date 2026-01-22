@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import numpy as np
-from sklearn.linear_model import LinearRegression
 import os
 import time
 from datetime import datetime, timezone, timedelta
@@ -11,7 +10,7 @@ from supabase import create_client
 
 # --- 0. PAGE ARCHITECTURE ---
 st.set_page_config(
-    page_title="SENTINEL | RISK COMMAND",
+    page_title="SENTINEL | UNIFIED COMMAND",
     page_icon="🛰️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -32,7 +31,7 @@ def get_supabase():
 
 supabase = get_supabase()
 
-# --- 2. TELEMETRY ENGINE ---
+# --- 2. DATA FUSION ENGINES ---
 @st.cache_data(ttl=0) 
 def fetch_telemetry():
     try:
@@ -41,48 +40,70 @@ def fetch_telemetry():
             .order("timestamp", desc=True)\
             .limit(200).execute()
         return pd.DataFrame(response.data)
-    except Exception as e:
+    except Exception:
         return pd.DataFrame()
 
-# --- 3. HEARTBEAT DIAGNOSTIC (The Corporate Health Check) ---
+@st.cache_data(ttl=0)
+def fetch_sentiment():
+    try:
+        # DIRECT LINK TO THE AI SENTINEL TABLE
+        response = supabase.table("sentinel_intelligence")\
+            .select("*")\
+            .order("timestamp", desc=True)\
+            .limit(1).execute()
+        if response.data:
+            return response.data[0]['sentiment_score']
+        return 0.5  # Neutral fallback
+    except Exception:
+        return 0.5
+
+# --- 3. DIAGNOSTICS ---
 def check_system_health(df):
-    if df.empty:
-        return "OFFLINE", "#C62828"  # Red
-    
-    # Ensure timestamp is datetime aware
+    if df.empty: return "OFFLINE", "#C62828"
     latest_pulse_time = pd.to_datetime(df['timestamp']).max()
-    
-    # If the time difference is > 120 seconds, the engine is failing
     if (datetime.now(timezone.utc) - latest_pulse_time) > timedelta(seconds=120):
-        return "ENGINE OFFLINE", "#C62828"  # Red
-    else:
-        return "SYSTEM LIVE", "#2E7D32"  # Green
+        return "ENGINE OFFLINE", "#C62828"
+    return "SYSTEM LIVE", "#2E7D32"
 
-# --- UI START ---
+# --- DATA RECOVERY ---
 df_full = fetch_telemetry()
+ai_score = fetch_sentiment()
 
-# --- SIDEBAR: COMMAND CONTROLS & MONITOR ---
-st.sidebar.header("🛡️ SYSTEM STATUS")
+# --- SIDEBAR: GOVERNANCE & AI ---
+st.sidebar.header("🛡️ SYSTEM GOVERNANCE")
 
-# HEARTBEAT MONITOR PLACEMENT
+# Heartbeat
 status_text, status_color = check_system_health(df_full)
 st.sidebar.markdown(f"""
-    <div style="background-color:{status_color}; padding:12px; border-radius:8px; text-align:center; color:white; font-weight:bold; border: 1px solid rgba(255,255,255,0.2);">
+    <div style="background-color:{status_color}; padding:12px; border-radius:8px; text-align:center; color:white; font-weight:bold;">
         📡 {status_text}
     </div>
+    """, unsafe_allow_html=True)
+
+st.sidebar.markdown("---")
+
+# 🤖 FINBERT SENTIMENT DISPLAY
+st.sidebar.subheader("🤖 AI SENTINEL")
+sentiment_color = "#C62828" if ai_score < 0.4 else "#2E7D32" if ai_score > 0.6 else "#F57C00"
+st.sidebar.metric("Geopolitical Stress Score", f"{ai_score:.2f}", delta=None)
+st.sidebar.markdown(f"""
+    <div style="width: 100%; background-color: #424242; border-radius: 5px;">
+        <div style="width: {ai_score*100}%; background-color: {sentiment_color}; height: 10px; border-radius: 5px;"></div>
+    </div>
+    <small> Institutional News Sentiment (FinBERT)</small>
     """, unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 focus_mode = st.sidebar.toggle("🧘 Focus Mode", value=False)
 refresh_rate = st.sidebar.select_slider("Refresh (s)", options=[10, 30, 60], value=10)
 
-# Main Title
+# --- MAIN DASHBOARD ---
 st.title("🛰️ SENTINEL PRIME : UNIFIED RISK COMMAND")
 
 if not df_full.empty:
     # --- 4. GLOBAL RISK HEATMAP ---
     latest_pulses = df_full.drop_duplicates(subset=['asset'])
-    st.subheader("🌍 Global Market Regime Heatmap")
+    st.subheader("🌍 Multi-Asset Regime Heatmap")
     h_cols = st.columns(len(latest_pulses))
     
     for i, (_, row) in enumerate(latest_pulses.iterrows()):
@@ -97,18 +118,20 @@ if not df_full.empty:
                 </div>
             """, unsafe_allow_html=True)
 
-    # --- 5. ASSET FOCUS & CHARTS ---
+    # --- 5. ASSET FOCUS ---
     asset_focus = st.sidebar.selectbox("Select Asset", latest_pulses['asset'].unique())
     df_asset = df_full[df_full['asset'] == asset_focus]
 
     if not focus_mode:
-        fig_p = px.line(df_asset, x='timestamp', y='price', title=f"{asset_focus} Real-Time Pulse", template="plotly_dark")
+        fig_p = px.line(df_asset, x='timestamp', y='price', 
+                        title=f"{asset_focus} Live Price Action", 
+                        template="plotly_dark", color_discrete_sequence=[sentiment_color])
         st.plotly_chart(fig_p, use_container_width=True)
     else:
-        st.info("🧘 Focus Mode: Charts hidden. Monitoring Regimes.")
+        st.info("🧘 Focus Mode: Charts hidden. Monitoring Regimes and AI Sentiment.")
 
 else:
-    st.warning("🔄 Awaiting Data Signal from ASUS TUF Engine...")
+    st.warning("🔄 Awaiting Hybrid Data Signal (Multi-Asset + FinBERT)...")
 
 # --- 6. AUTO-RELOAD ---
 time.sleep(refresh_rate)
