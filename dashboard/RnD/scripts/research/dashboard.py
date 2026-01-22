@@ -43,19 +43,20 @@ def fetch_telemetry():
     except Exception:
         return pd.DataFrame()
 
-@st.cache_data(ttl=0)
+@st.cache_data(ttl=5)
 def fetch_sentiment():
     try:
-        # MISSION CRITICAL: Points to your existing Supabase table
+        # We fetch from the table your logs are confirmed syncing to
         response = supabase.table("sentinel_intelligence")\
             .select("*")\
             .order("timestamp", desc=True)\
             .limit(1).execute()
+        
         if response.data:
-            # Matches the column name in your Supabase table
-            return response.data[0]['sentiment_score']
+            # CHANGE THIS LINE: Your log says 'Sentiment', so we use that key
+            return response.data[0].get('sentiment', 0.5) 
         return 0.5
-    except Exception as e:
+    except Exception:
         return 0.5
 
 # --- 3. DIAGNOSTICS ---
