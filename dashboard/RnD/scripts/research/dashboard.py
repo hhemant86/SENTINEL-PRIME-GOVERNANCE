@@ -46,15 +46,17 @@ def fetch_telemetry():
 @st.cache_data(ttl=5)
 def fetch_sentiment():
     try:
-        # FIX: Changed table name to 'sentinel_logs' to match your AI Engine
+        # POINT TO THE CORRECT TABLE: sentinel_logs
         response = supabase.table("sentinel_logs")\
-            .select("sentiment")\
+            .select("*")\
             .order("id", desc=True)\
             .limit(1).execute()
         
         if response.data:
-            # FIX: Using lowercase 'sentiment' to match your Supabase column
-            return float(response.data[0]['sentiment'])
+            data = response.data[0]
+            # CASE-INSENSITIVE FIX: Checks 'sentiment' then 'Sentiment'
+            score = data.get('sentiment', data.get('Sentiment', 0.5))
+            return float(score)
         return 0.5
     except Exception as e:
         return 0.5
@@ -63,6 +65,10 @@ def fetch_sentiment():
 def check_system_health(df):
     if df.empty: return "OFFLINE", "#C62828"
     latest_pulse_time = pd.to_datetime(df['timestamp']).max()
+    # Normalize timestamp for comparison
+    if latest_pulse_time.tzinfo is None:
+        latest_pulse_time = latest_pulse_time.replace(tzinfo=timezone.utc)
+        
     if (datetime.now(timezone.utc) - latest_pulse_time) > timedelta(seconds=120):
         return "ENGINE OFFLINE", "#C62828"
     return "SYSTEM LIVE", "#2E7D32"
@@ -90,7 +96,7 @@ sentiment_color = "#C62828" if ai_score < 0.4 else "#2E7D32" if ai_score > 0.6 e
 st.sidebar.metric("Geopolitical Stress Score", f"{ai_score:.2f}", delta=None)
 st.sidebar.markdown(f"""
     <div style="width: 100%; background-color: #424242; border-radius: 5px;">
-        <div style="width: {ai_score*100}%; background-color: {sentiment_color}; height: 10px; border-radius: 5px;"></div>
+        <div style="width: {min(max((ai_score + 1) / 2 * 100, 0), 100)}%; background-color: {sentiment_color}; height: 10px; border-radius: 5px;"></div>
     </div>
     <small> Institutional News Sentiment (FinBERT)</small>
     """, unsafe_allow_html=True)
@@ -131,7 +137,6 @@ if not df_full.empty:
         st.plotly_chart(fig_p, use_container_width=True)
     else:
         st.info("🧘 Focus Mode: Charts hidden. Monitoring Regimes and AI Sentiment.")
-
 else:
     st.warning("🔄 Awaiting Hybrid Data Signal (Multi-Asset + FinBERT)...")
 
