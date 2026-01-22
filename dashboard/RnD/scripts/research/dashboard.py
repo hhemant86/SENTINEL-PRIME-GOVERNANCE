@@ -49,7 +49,7 @@ def fetch_sentiment():
         # POINT TO THE CORRECT TABLE: sentinel_logs
         response = supabase.table("sentinel_logs")\
             .select("*")\
-            .order("id", desc=True)\
+            .order("timestamp", desc=True)\
             .limit(1).execute()
         
         if response.data:
