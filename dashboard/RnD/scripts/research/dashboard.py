@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import numpy as np
 import os
 import time
 from datetime import datetime, timezone, timedelta
@@ -32,114 +31,106 @@ def get_supabase():
 supabase = get_supabase()
 
 # --- 2. DATA FUSION ENGINES ---
-@st.cache_data(ttl=0) 
+# Added 'nocache' parameter to force fresh data every refresh_rate
 def fetch_telemetry():
     try:
         response = supabase.table("multi_asset_telemetry")\
             .select("*")\
             .order("timestamp", desc=True)\
-            .limit(200).execute()
+            .limit(100).execute()
         return pd.DataFrame(response.data)
     except Exception:
         return pd.DataFrame()
 
-@st.cache_data(ttl=5)
 def fetch_sentiment():
     try:
-        # POINT TO THE CORRECT TABLE: sentinel_logs
+        # Step 1: Query by ID (assuming it's an auto-incrementing primary key)
+        # This is the most reliable way to get the "Last In" row
         response = supabase.table("sentinel_logs")\
-            .select("*")\
-            .order("timestamp", desc=True)\
+            .select("sentiment")\
+            .order("id", desc=True)\
             .limit(1).execute()
         
         if response.data:
-            data = response.data[0]
-            # CASE-INSENSITIVE FIX: Checks 'sentiment' then 'Sentiment'
-            score = data.get('sentiment', data.get('Sentiment', 0.5))
+            # Step 2: Extract the score
+            score = response.data[0].get('sentiment', 0.5)
             return float(score)
         return 0.5
     except Exception as e:
+        # Step 3: Minimal error reporting for your eyes only during the demo
+        # st.sidebar.error(f"Sync Lag: {e}") 
         return 0.5
 
-# --- 3. DIAGNOSTICS ---
+# --- 3. SYSTEM HEALTH LOGIC ---
 def check_system_health(df):
     if df.empty: return "OFFLINE", "#C62828"
-    latest_pulse_time = pd.to_datetime(df['timestamp']).max()
-    # Normalize timestamp for comparison
-    if latest_pulse_time.tzinfo is None:
-        latest_pulse_time = latest_pulse_time.replace(tzinfo=timezone.utc)
-        
-    if (datetime.now(timezone.utc) - latest_pulse_time) > timedelta(seconds=120):
-        return "ENGINE OFFLINE", "#C62828"
+    latest_pulse = pd.to_datetime(df['timestamp']).max()
+    if latest_pulse.tzinfo is None:
+        latest_pulse = latest_pulse.replace(tzinfo=timezone.utc)
+    
+    if (datetime.now(timezone.utc) - latest_pulse) > timedelta(seconds=120):
+        return "ENGINE LAG", "#F57C00"
     return "SYSTEM LIVE", "#2E7D32"
 
-# --- DATA RECOVERY ---
+# --- DATA EXECUTION ---
 df_full = fetch_telemetry()
 ai_score = fetch_sentiment()
 
-# --- SIDEBAR: GOVERNANCE & AI ---
+# --- SIDEBAR: GOVERNANCE ---
 st.sidebar.header("🛡️ SYSTEM GOVERNANCE")
 
-# Heartbeat
 status_text, status_color = check_system_health(df_full)
 st.sidebar.markdown(f"""
-    <div style="background-color:{status_color}; padding:12px; border-radius:8px; text-align:center; color:white; font-weight:bold;">
+    <div style="background-color:{status_color}; padding:10px; border-radius:8px; text-align:center; color:white; font-weight:bold;">
         📡 {status_text}
     </div>
     """, unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 
-# 🤖 FINBERT SENTIMENT DISPLAY
+# 🤖 AI SENTINEL GAUGE
 st.sidebar.subheader("🤖 AI SENTINEL")
-sentiment_color = "#C62828" if ai_score < 0.4 else "#2E7D32" if ai_score > 0.6 else "#F57C00"
-st.sidebar.metric("Geopolitical Stress Score", f"{ai_score:.2f}", delta=None)
+# Color logic for sentiment
+s_color = "#C62828" if ai_score < 0.45 else "#2E7D32" if ai_score > 0.55 else "#F57C00"
+
+st.sidebar.metric("Sentiment Pulse (FinBERT)", f"{ai_score:.4f}")
 st.sidebar.markdown(f"""
-    <div style="width: 100%; background-color: #424242; border-radius: 5px;">
-        <div style="width: {min(max((ai_score + 1) / 2 * 100, 0), 100)}%; background-color: {sentiment_color}; height: 10px; border-radius: 5px;"></div>
+    <div style="width: 100%; background-color: #424242; border-radius: 5px; margin-top:10px;">
+        <div style="width: {min(max((ai_score + 1) / 2 * 100, 0), 100)}%; background-color: {s_color}; height: 8px; border-radius: 5px;"></div>
     </div>
-    <small> Institutional News Sentiment (FinBERT)</small>
     """, unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
-focus_mode = st.sidebar.toggle("🧘 Focus Mode", value=False)
-refresh_rate = st.sidebar.select_slider("Refresh (s)", options=[10, 30, 60], value=10)
+refresh_rate = st.sidebar.select_slider("Telemetry Sync (s)", options=[5, 10, 30, 60], value=10)
 
 # --- MAIN DASHBOARD ---
 st.title("🛰️ SENTINEL PRIME : UNIFIED RISK COMMAND")
 
 if not df_full.empty:
-    # --- 4. GLOBAL RISK HEATMAP ---
+    # 🌍 Heatmap
     latest_pulses = df_full.drop_duplicates(subset=['asset'])
-    st.subheader("🌍 Multi-Asset Regime Heatmap")
     h_cols = st.columns(len(latest_pulses))
     
     for i, (_, row) in enumerate(latest_pulses.iterrows()):
         with h_cols[i]:
-            regime = str(row.get('regime', 'INITIALIZING')).upper()
-            bg_color = "#2E7D32" if "STABLE" in regime else \
-                       "#F57C00" if "STRESS" in regime else \
-                       "#C62828" if "ANOMALY" in regime else "#424242"
+            regime = str(row.get('regime', 'SYNCING')).upper()
+            reg_color = "#2E7D32" if "STABLE" in regime else "#F57C00" if "STRESS" in regime else "#C62828"
             st.markdown(f"""
-                <div style="background-color:{bg_color}; padding:15px; border-radius:10px; text-align:center; color:white;">
+                <div style="background-color:{reg_color}; padding:12px; border-radius:8px; text-align:center; color:white;">
                     <small>{row['asset']}</small><br><strong>{regime}</strong>
                 </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
 
-    # --- 5. ASSET FOCUS ---
-    asset_focus = st.sidebar.selectbox("Select Asset", latest_pulses['asset'].unique())
-    df_asset = df_full[df_full['asset'] == asset_focus]
-
-    if not focus_mode:
-        fig_p = px.line(df_asset, x='timestamp', y='price', 
-                        title=f"{asset_focus} Live Price Action", 
-                        template="plotly_dark", color_discrete_sequence=[sentiment_color])
-        st.plotly_chart(fig_p, use_container_width=True)
-    else:
-        st.info("🧘 Focus Mode: Charts hidden. Monitoring Regimes and AI Sentiment.")
+    # 📈 Charting
+    asset_focus = st.sidebar.selectbox("Focus Asset", latest_pulses['asset'].unique())
+    df_plot = df_full[df_full['asset'] == asset_focus]
+    
+    fig = px.line(df_plot, x='timestamp', y='price', title=f"{asset_focus} Real-time Telemetry",
+                  template="plotly_dark", color_discrete_sequence=[s_color])
+    st.plotly_chart(fig, use_container_width=True)
 else:
-    st.warning("🔄 Awaiting Hybrid Data Signal (Multi-Asset + FinBERT)...")
+    st.info("🔄 Establishing Cloud Handshake... Check local engine status.")
 
-# --- 6. AUTO-RELOAD ---
+# --- AUTO-REFRESH ---
 time.sleep(refresh_rate)
 st.rerun()
