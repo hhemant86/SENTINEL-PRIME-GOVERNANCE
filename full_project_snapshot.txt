@@ -1,0 +1,871 @@
+PROPRIETARY SNAPSHOT: SENTINEL_PRIME_GOVERNANCE
+============================================================
+
+--- SYSTEM ARCHITECTURE TREE ---
+📁 .devcontainer/
+    📄 devcontainer.json
+📄 .env
+📄 .gitignore
+📄 .pre-commit-config.yaml
+📁 ai_research/
+    📁 logs/
+        📄 integrated_audit.csv
+    📁 RnD/
+        📁 results/
+            📄 integrated_audit.csv
+        📁 scripts/
+            📁 research/
+                📄 ai_sentiment_sentinel.py
+📄 check_files.py
+📁 dashboard/
+    📁 RnD/
+        📁 scripts/
+            📁 research/
+                📁 .streamlit/
+                    📄 secrets.toml
+                📄 dashboard.py
+📁 data_schema/
+    📁 data/
+        📄 stable_regime_data.csv
+📁 engine/
+    📁 scripts/
+        📄 flush_vault.py
+        📄 kill_switch.py
+        📄 live_price_sentinel.py
+        📄 multi_asset_fetcher.py
+📄 export_filecode.py
+📄 full_project_snapshot.txt
+📁 logs/
+    📄 integrated_audit.csv
+📄 port_project.py
+📄 README.md
+📄 requirements.txt
+
+============================================================
+
+--- CORE LOGIC & CONFIGURATIONS ---
+
+FILE: .devcontainer\devcontainer.json
+----------------------------------------
+{
+  "name": "Python 3",
+  // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",
+  "customizations": {
+    "codespaces": {
+      "openFiles": [
+        "README.md",
+        "dashboard/RnD/scripts/research/dashboard.py"
+      ]
+    },
+    "vscode": {
+      "settings": {},
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  },
+  "updateContentCommand": "[ -f packages.txt ] && sudo apt update && sudo apt upgrade -y && sudo xargs apt install -y <packages.txt; [ -f requirements.txt ] && pip3 install --user -r requirements.txt; pip3 install --user streamlit; echo '✅ Packages installed and Requirements met'",
+  "postAttachCommand": {
+    "server": "streamlit run dashboard/RnD/scripts/research/dashboard.py --server.enableCORS false --server.enableXsrfProtection false"
+  },
+  "portsAttributes": {
+    "8501": {
+      "label": "Application",
+      "onAutoForward": "openPreview"
+    }
+  },
+  "forwardPorts": [
+    8501
+  ]
+}
+========================================
+
+FILE: ai_research\RnD\scripts\research\ai_sentiment_sentinel.py
+----------------------------------------
+import os
+import pandas as pd
+import numpy as np
+import time
+from datetime import datetime
+import feedparser
+import ssl
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from dotenv import load_dotenv
+from supabase import create_client
+
+# --- 1. CONFIGURATION & CLOUD HANDSHAKE ---
+load_dotenv()  # Loads variables from .env
+
+# Supabase Credentials
+URL = os.getenv("SUPABASE_URL")
+KEY = os.getenv("SUPABASE_KEY")
+supabase = create_client(URL, KEY)
+
+# Local Path Management (Institutional Backup)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOGS_DIR = os.path.normpath(os.path.join(BASE_DIR, "../../../../logs"))
+LOG_PATH = os.path.join(LOGS_DIR, "integrated_audit.csv")
+
+if not os.path.exists(LOGS_DIR):
+    os.makedirs(LOGS_DIR, exist_ok=True)
+
+# --- 2. AI SETUP (FinBERT) ---
+if hasattr(ssl, '_create_unverified_context'):
+    ssl._create_default_https_context = ssl._create_unverified_context
+
+tokenizer = AutoTokenizer.from_pretrained("ProsusAI/finbert")
+model = AutoModelForSequenceClassification.from_pretrained("ProsusAI/finbert")
+
+FEEDS = {
+    'Yahoo Finance': "https://finance.yahoo.com/news/rssindex",
+    'Reuters Macro': "https://ir.thomsonreuters.com/rss/news-releases.xml?items=15",
+    'Kitco Gold': "https://www.kitco.com/rss/news.xml"
+}
+
+# --- 3. GOVERNANCE LOGIC ---
+class HumanGovernance:
+    def __init__(self):
+        self.anomaly_counter = 0
+        self.cooldown_active = False
+        self.cooldown_start_time = None
+        self.cooldown_duration = 300 
+
+    def evaluate_risk(self, market_state, sentiment_score):
+        if self.cooldown_active:
+            elapsed = time.time() - self.cooldown_start_time
+            if elapsed < self.cooldown_duration:
+                return f"⛔ LOCK ACTIVE. [{int(self.cooldown_duration-elapsed)}s]"
+            self.cooldown_active = False
+            self.anomaly_counter = 0
+
+        # Divergence Logic: High volatility without high sentiment
+        if market_state == "ANOMALY" and abs(sentiment_score) < 0.2:
+            self.anomaly_counter += 2 
+        elif market_state == "ANOMALY":
+            self.anomaly_counter += 1
+        else:
+            self.anomaly_counter = max(0, self.anomaly_counter - 1)
+
+        if self.anomaly_counter >= 5:
+            self.cooldown_active = True
+            self.cooldown_start_time = time.time()
+            return "🚨 ALERT: SYSTEM LOCKING - High Divergence Detected."
+        
+        return "🟢 State: Nominal"
+
+def get_live_sentiment():
+    headlines = []
+    for url in FEEDS.values():
+        try:
+            feed = feedparser.parse(url)
+            headlines.extend([entry.title for entry in feed.entries[:3]])
+        except: continue
+    
+    if not headlines: return 0.0
+    
+    inputs = tokenizer(headlines, padding=True, truncation=True, return_tensors='pt')
+    with torch.no_grad():
+        outputs = model(**inputs)
+        probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
+    
+    avg_pos = probs[:, 0].mean().item()
+    avg_neg = probs[:, 1].mean().item()
+    return round(avg_pos - avg_neg, 4)
+
+# --- 4. MAIN ENGINE EXECUTION ---
+def run_sentinel_prime():
+    gov = HumanGovernance()
+    print(f"\n{'='*60}\n{'SENTINEL PRIME v2.0 | CLOUD-INTEGRATED ENGINE':^60}\n{'='*60}")
+    print(f"📡 Cloud Node: {URL}")
+    print(f"📁 Local Backup: {LOG_PATH}\n")
+
+    while True:
+        # A. Quant Telemetry
+        mock_z = np.random.uniform(0, 4.0) 
+        market_state = "ANOMALY" if mock_z > 3.0 else "STRESS" if mock_z > 2.0 else "STABLE"
+        
+        # B. AI Narrative Analysis
+        sentiment_score = get_live_sentiment()
+        
+        # C. Governance Decision
+        report = gov.evaluate_risk(market_state, sentiment_score)
+        ts = datetime.now().strftime("%H:%M:%S")
+
+        print(f"[{ts}] Market: {market_state} ({mock_z:.2f}) | Sentiment: {sentiment_score}")
+        print(f"👉 {report}")
+
+        # D. Cloud Data Payload (Supabase)
+        cloud_data = {
+            "timestamp": ts,
+            "z_score": float(mock_z),
+            "sentiment": float(sentiment_score),
+            "state": market_state,
+            "governance": report
+        }
+
+        # E. Dual Persistence Strategy
+        try:
+            # 1. Push to Supabase
+            supabase.table("sentinel_logs").insert(cloud_data).execute()
+            print("☁️ Sync Successful: Cloud Vault Updated.")
+            
+            # 2. Local Backup (CSV)
+            log_entry = pd.DataFrame([cloud_data])
+            log_entry.to_csv(LOG_PATH, mode='a', index=False, header=not os.path.exists(LOG_PATH))
+            
+        except Exception as e:
+            print(f"⚠️ Persistence Error: {e}")
+
+        print("-" * 60)
+        time.sleep(30)
+
+if __name__ == "__main__":
+    run_sentinel_prime()
+========================================
+
+FILE: check_files.py
+----------------------------------------
+import pathlib
+
+def list_files(directory, indent="", exclude_dirs=None):
+    if exclude_dirs is None:
+        exclude_dirs = {"venv", ".venv", "env", ".env",
+    "__pycache__", ".git", ".idea", ".pytest_cache",
+    "site-packages", "dist-info"}
+
+    path = pathlib.Path(directory)
+    
+    # Get all items in the directory and sort them (folders first, then files)
+    items = sorted(path.iterdir(), key=lambda x: (x.is_file(), x.name.lower()))
+
+    for i, item in enumerate(items):
+        if item.name in exclude_dirs:
+            continue
+
+        # Check if this is the last item in the current directory for formatting
+        is_last = i == len(items) - 1
+        connector = "└── " if is_last else "├── "
+        
+        print(f"{indent}{connector}{item.name}")
+
+        # If it's a directory, recurse into it
+        if item.is_dir():
+            new_indent = indent + ("    " if is_last else "│   ")
+            list_files(item, new_indent, exclude_dirs)
+
+if __name__ == "__main__":
+    # Use '.' for the current directory or provide a specific path
+    root_dir = "." 
+    print(f"Project Structure: {pathlib.Path(root_dir).absolute().name}")
+    list_files(root_dir)
+========================================
+
+FILE: dashboard\RnD\scripts\research\.streamlit\secrets.toml
+----------------------------------------
+SUPABASE_URL="https://qwqtnbcfeiwjkrkxygao.supabase.co"
+SUPABASE_KEY="sb_publishable_gUeQkm-IHtwOeK_M79mIUg_kmELzs-c"
+========================================
+
+FILE: dashboard\RnD\scripts\research\dashboard.py
+----------------------------------------
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import os
+import time
+from datetime import datetime, timezone, timedelta
+from dotenv import load_dotenv
+from supabase import create_client
+
+# --- 0. PAGE ARCHITECTURE ---
+st.set_page_config(
+    page_title="SENTINEL | UNIFIED COMMAND",
+    page_icon="🛰️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# --- 1. SECURE CLOUD CONNECTION ---
+if os.path.exists(".env"):
+    load_dotenv()
+    URL = os.getenv("SUPABASE_URL")
+    KEY = os.getenv("SUPABASE_KEY")
+else:
+    URL = st.secrets.get("SUPABASE_URL")
+    KEY = st.secrets.get("SUPABASE_KEY")
+
+@st.cache_resource
+def get_supabase():
+    return create_client(URL, KEY)
+
+supabase = get_supabase()
+
+# --- 2. DATA FUSION ENGINES ---
+# Added 'nocache' parameter to force fresh data every refresh_rate
+def fetch_telemetry():
+    try:
+        response = supabase.table("multi_asset_telemetry")\
+            .select("*")\
+            .order("timestamp", desc=True)\
+            .limit(100).execute()
+        return pd.DataFrame(response.data)
+    except Exception:
+        return pd.DataFrame()
+
+def fetch_sentiment():
+    try:
+        # Step 1: Query by ID (assuming it's an auto-incrementing primary key)
+        # This is the most reliable way to get the "Last In" row
+        response = supabase.table("sentinel_logs")\
+            .select("sentiment")\
+            .order("id", desc=True)\
+            .limit(1).execute()
+        
+        if response.data:
+            # Step 2: Extract the score
+            score = response.data[0].get('sentiment', 0.5)
+            return float(score)
+        return 0.5
+    except Exception as e:
+        # Step 3: Minimal error reporting for your eyes only during the demo
+        # st.sidebar.error(f"Sync Lag: {e}") 
+        return 0.5
+
+# --- 3. SYSTEM HEALTH LOGIC ---
+def check_system_health(df):
+    if df.empty: return "OFFLINE", "#C62828"
+    latest_pulse = pd.to_datetime(df['timestamp']).max()
+    if latest_pulse.tzinfo is None:
+        latest_pulse = latest_pulse.replace(tzinfo=timezone.utc)
+    
+    if (datetime.now(timezone.utc) - latest_pulse) > timedelta(seconds=120):
+        return "ENGINE LAG", "#F57C00"
+    return "SYSTEM LIVE", "#2E7D32"
+
+# --- DATA EXECUTION ---
+df_full = fetch_telemetry()
+ai_score = fetch_sentiment()
+
+# --- SIDEBAR: GOVERNANCE ---
+st.sidebar.header("🛡️ SYSTEM GOVERNANCE")
+
+status_text, status_color = check_system_health(df_full)
+st.sidebar.markdown(f"""
+    <div style="background-color:{status_color}; padding:10px; border-radius:8px; text-align:center; color:white; font-weight:bold;">
+        📡 {status_text}
+    </div>
+    """, unsafe_allow_html=True)
+
+st.sidebar.markdown("---")
+
+# 🤖 AI SENTINEL GAUGE
+st.sidebar.subheader("🤖 AI SENTINEL")
+# Color logic for sentiment
+s_color = "#C62828" if ai_score < 0.45 else "#2E7D32" if ai_score > 0.55 else "#F57C00"
+
+st.sidebar.metric("Sentiment Pulse (FinBERT)", f"{ai_score:.4f}")
+st.sidebar.markdown(f"""
+    <div style="width: 100%; background-color: #424242; border-radius: 5px; margin-top:10px;">
+        <div style="width: {min(max((ai_score + 1) / 2 * 100, 0), 100)}%; background-color: {s_color}; height: 8px; border-radius: 5px;"></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.sidebar.markdown("---")
+refresh_rate = st.sidebar.select_slider("Telemetry Sync (s)", options=[5, 10, 30, 60], value=10)
+
+# --- MAIN DASHBOARD ---
+st.title("🛰️ SENTINEL PRIME : UNIFIED RISK COMMAND")
+
+if not df_full.empty:
+    # 🌍 Heatmap
+    latest_pulses = df_full.drop_duplicates(subset=['asset'])
+    h_cols = st.columns(len(latest_pulses))
+    
+    for i, (_, row) in enumerate(latest_pulses.iterrows()):
+        with h_cols[i]:
+            regime = str(row.get('regime', 'SYNCING')).upper()
+            reg_color = "#2E7D32" if "STABLE" in regime else "#F57C00" if "STRESS" in regime else "#C62828"
+            st.markdown(f"""
+                <div style="background-color:{reg_color}; padding:12px; border-radius:8px; text-align:center; color:white;">
+                    <small>{row['asset']}</small><br><strong>{regime}</strong>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # 📈 Charting
+    asset_focus = st.sidebar.selectbox("Focus Asset", latest_pulses['asset'].unique())
+    df_plot = df_full[df_full['asset'] == asset_focus]
+    
+    fig = px.line(df_plot, x='timestamp', y='price', title=f"{asset_focus} Real-time Telemetry",
+                  template="plotly_dark", color_discrete_sequence=[s_color])
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("🔄 Establishing Cloud Handshake... Check local engine status.")
+
+# --- AUTO-REFRESH ---
+time.sleep(refresh_rate)
+st.rerun()
+========================================
+
+FILE: engine\scripts\flush_vault.py
+----------------------------------------
+import os
+from dotenv import load_dotenv
+from supabase import create_client
+
+load_dotenv()
+
+url = os.getenv("SUPABASE_URL")
+key = os.getenv("SUPABASE_KEY")
+supabase = create_client(url, key)
+
+def clear_table():
+    print("⚠️  INITIATING VAULT PURGE...")
+    # This deletes everything where asset is not null (which is every row)
+    response = supabase.table("multi_asset_telemetry").delete().neq("asset", "null").execute()
+    print("✅ VAULT CLEARED. Sentinel is now a Blank Slate.")
+
+if __name__ == "__main__":
+    clear_table()
+========================================
+
+FILE: engine\scripts\kill_switch.py
+----------------------------------------
+"""
+Institutional Kill-Switch Protocol v2.0
+Bridges Live News Sentiment with Portfolio Drawdown Protection.
+"""
+import pandas as pd
+import os
+
+def check_live_signal():
+    """Reads the signal generated by live_news_sentinel.py"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    signal_path = os.path.join(base_dir, '..', 'results', 'live_risk_signal.txt')
+    
+    if os.path.exists(signal_path):
+        with open(signal_path, 'r') as f:
+            return f.read().strip()
+    return "NORMAL"
+
+def run_kill_switch_protocol():
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    data_path = os.path.join(base_path, '..', 'data', 'volatile_regime_data.csv')
+    
+    # 1. GATE 1: LIVE GEOPOLITICAL CHECK
+    current_signal = check_live_signal()
+    print(f"\n--- 🛡️ RISK GATEWAY: LIVE SIGNAL IS {current_signal} ---")
+    
+    geopolitical_halt = False
+    if current_signal == "CRITICAL":
+        print("🚨 GEOPOLITICAL EMERGENCY: Live News Sentinel detected Extreme Risk.")
+        print("FORCING SYSTEM-WIDE TRADING HALT.")
+        geopolitical_halt = True
+
+    # 2. GATE 2: HISTORICAL VOLATILITY CHECK
+    try:
+        df = pd.read_csv(data_path)
+        
+        # Define Kill-Switch Logic
+        def apply_halt(row):
+            # If news is CRITICAL or Regime is EXTREME, profit goes to 0 (No exposure)
+            if geopolitical_halt or row['regime'] in ['EXTREME', 'OUTLIER']:
+                return 0.0
+            return row['profit_usd']
+
+        df['mitigated_profit'] = df.apply(apply_halt, axis=1)
+        
+        # 3. AUDIT THE RESULTS
+        original_mdd = df['profit_usd'].min()
+        protected_mdd = df['mitigated_profit'].min()
+        
+        print("\n--- 🏁 EMERGENCY AUDIT REPORT ---")
+        print(f"Max Potential Loss (Unprotected): ${original_mdd:,.2f}")
+        print(f"Max Potential Loss (Protected):   ${protected_mdd:,.2f}")
+        
+        efficiency = ((original_mdd - protected_mdd) / original_mdd) * 100 if original_mdd != 0 else 0
+        print(f"Risk Mitigation Efficiency:      {efficiency:.2f}%")
+        
+        # 4. EXPORT FOR DUBAI COMPLIANCE REVIEW
+        results_path = os.path.join(base_path, '..', 'results', 'kill_switch_audit.csv')
+        df.to_csv(results_path, index=False)
+        print(f"\n✅ Institutional Audit saved: {results_path}")
+
+    except Exception as e:
+        print(f"❌ Kill-Switch Logic Error: {e}")
+
+if __name__ == "__main__":
+    run_kill_switch_protocol()
+
+========================================
+
+FILE: engine\scripts\live_price_sentinel.py
+----------------------------------------
+import pandas as pd
+import numpy as np
+import time
+from datetime import datetime
+import os
+import feedparser
+import ssl
+
+# --- 1. INITIALIZATION & SECURITY ---
+if hasattr(ssl, '_create_unverified_context'):
+    ssl._create_default_https_context = ssl._create_unverified_context
+
+# Institutional Feed Quorum
+FEEDS = {
+    'Yahoo Finance': "https://finance.yahoo.com/news/rssindex",
+    'Reuters Macro': "https://ir.thomsonreuters.com/rss/news-releases.xml?items=15",
+    'Kitco Gold': "https://www.kitco.com/rss/news.xml",
+    'ZeroHedge': "http://feeds.feedburner.com/zerohedge/feed"
+}
+CRITICAL_WORDS = ['war', 'conflict', 'crisis', 'geopolitical', 'sanctions', 'attack']
+
+# --- 2. BEHAVIORAL GUARDRAIL LAYER ---
+class HumanGovernance:
+    def __init__(self):
+        self.anomaly_counter = 0
+        self.cooldown_active = False
+        self.cooldown_start_time = None
+        self.cooldown_duration = 300 # 5 Min for testing
+
+    def evaluate_human_risk(self, market_state, news_risk):
+        if self.cooldown_active:
+            elapsed = time.time() - self.cooldown_start_time
+            if elapsed < self.cooldown_duration:
+                return f"⛔ LOCK ACTIVE: Cognitive Reset Required. [{int(self.cooldown_duration-elapsed)}s]"
+            self.cooldown_active = False
+            self.anomaly_counter = 0
+
+        # Escalate if Market is Anomaly OR News is Critical
+        if market_state == "ANOMALY_DETECTION" or news_risk == "CRITICAL":
+            self.anomaly_counter += 1
+        else:
+            self.anomaly_counter = max(0, self.anomaly_counter - 1)
+
+        if self.anomaly_counter >= 5:
+            self.cooldown_active = True
+            self.cooldown_start_time = time.time()
+            return "🚨 ALERT: Behavioral Stress Threshold Breached. SYSTEM LOCKING..."
+        
+        return "🟢 Human State: Nominal"
+
+# --- 3. NEWS QUORUM LAYER ---
+def get_news_risk():
+    extreme_sources = set()
+    for name, url in FEEDS.items():
+        try:
+            feed = feedparser.parse(url)
+            for entry in feed.entries[:3]:
+                if any(w in entry.title.lower() for w in CRITICAL_WORDS):
+                    extreme_sources.add(name)
+        except: continue
+    
+    quorum = len(extreme_sources)
+    return "CRITICAL" if quorum >= 2 else "WARNING" if quorum == 1 else "NORMAL"
+
+# --- 4. THE MASTER ENGINE (FINALIZED) ---
+def run_integrated_sentinel():
+    gov = HumanGovernance()
+    
+    # 🏛️ INSTITUTIONAL PATH LOCK (Absolute Path)
+    results_dir = r'C:\Users\Asus\OneDrive\Desktop\BILLIONAIRE_ROADMAP\results'
+    log_path = os.path.join(results_dir, 'integrated_audit.csv')
+    
+    # Ensure directory exists before writing
+    if not os.path.exists(results_dir): 
+        os.makedirs(results_dir)
+
+    print("============================================================")
+    print("🛰️  SENTINEL PRIME: QUANT + QUAL + BEHAVIORAL GOVERNANCE")
+    print("============================================================")
+
+    while True:
+        # A. Market Logic (Simulated Z-Score)
+        mock_z = np.random.uniform(0, 4.5)
+        market_state = "ANOMALY_DETECTION" if mock_z > 3.0 else "STRESS" if mock_z > 2.0 else "NEUTRAL"
+        
+        # B. News Logic (Live Quorum)
+        news_risk = get_news_risk()
+
+        # C. Human Logic (Behavioral Guardrail)
+        behavior_report = gov.evaluate_human_risk(market_state, news_risk)
+
+        # D. Unified Output
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] Market: {market_state} ({mock_z:.2f}) | News: {news_risk}")
+        print(f"👉 {behavior_report}")
+        print("-" * 60)
+
+        # E. Forensic Logging (Using the log_path variable)
+        log_data = {
+            'timestamp': timestamp,
+            'market_z': round(mock_z, 2),
+            'market_state': market_state,
+            'news_risk': news_risk,
+            'behavior_report': behavior_report
+        }
+        
+        # Use log_path here to ensure consistency
+        pd.DataFrame([log_data]).to_csv(log_path, mode='a', index=False, header=not os.path.exists(log_path))
+
+        time.sleep(15)
+
+if __name__ == "__main__":
+    run_integrated_sentinel()
+
+========================================
+
+FILE: engine\scripts\multi_asset_fetcher.py
+----------------------------------------
+import asyncio
+import os
+import collections
+import numpy as np
+import yfinance as yf
+import ccxt.async_support as ccxt
+import aiohttp
+from dotenv import load_dotenv
+from supabase import acreate_client, AsyncClient
+from datetime import datetime, timezone
+
+load_dotenv()
+
+class RegimeClassifier:
+    def __init__(self, window_size=50):
+        self.buffers = collections.defaultdict(lambda: collections.deque(maxlen=window_size))
+
+    def classify(self, asset, price):
+        buffer = self.buffers[asset]
+        if len(buffer) < 20: 
+            buffer.append(price)
+            return "INITIALIZING", 0.0
+        mean, std = np.mean(buffer), np.std(buffer)
+        # Added safety for zero-standard deviation (flat markets)
+        z_score = (price - mean) / std if std > 0.000001 else 0.0
+        buffer.append(price)
+        regime = "ANOMALY" if abs(z_score) >= 3.0 else "STRESS" if abs(z_score) >= 1.5 else "STABLE"
+        return regime, round(float(z_score), 2)
+
+class MultiAssetPulse:
+    def __init__(self, supabase_client):
+        self.supabase = supabase_client
+        self.brain = RegimeClassifier()
+        self.binance = ccxt.binance({
+            'timeout': 30000, 
+            'connector_kwargs': {'resolver': aiohttp.DefaultResolver()}
+        })
+
+    @classmethod
+    async def create(cls):
+        return cls(await acreate_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY")))
+
+    async def fetch_yahoo_price(self, ticker_symbol):
+        """Thread-safe async fetch with triple-fallback (FastInfo -> 1m History -> 5d History)."""
+        try:
+            ticker = yf.Ticker(ticker_symbol)
+            # Attempt 1: Fast Info
+            price = await asyncio.to_thread(lambda: ticker.fast_info.get('last_price'))
+            
+            # Attempt 2: 1-minute interval History
+            if price is None or price == 0:
+                data = await asyncio.to_thread(lambda: ticker.history(period="1d", interval="1m"))
+                if not data.empty:
+                    price = data['Close'].iloc[-1]
+            
+            # Attempt 3: 5-day broad History
+            if price is None or price == 0:
+                data = await asyncio.to_thread(lambda: ticker.history(period="5d"))
+                if not data.empty:
+                    price = data['Close'].iloc[-1]
+                
+            return float(price) if price else None
+        except Exception:
+            return None
+
+    async def fetch_all(self):
+        """Unified parallel fetch with Live Brokerage Alignment Calibration."""
+        symbols = {
+            "BTC": "BTC/USDT", 
+            "XAU": "GC=F", 
+            "XAG": "SI=F", 
+            "MCX_GOLD": "GOLDBEES.NS",    
+            "MCX_SILVER": "SILVERBEES.NS" 
+        }
+        
+        results = []
+        
+        # 1. BTC Pulse (Binance)
+        try:
+            tick = await self.binance.fetch_ticker(symbols["BTC"])
+            results.append({"asset": "BTC", "price": float(tick['last']), "source": "Binance"})
+        except Exception:
+            pass
+
+        # 2. Parallel Fetch for Metals & MCX Proxies
+        assets_to_fetch = ["XAU", "XAG", "MCX_GOLD", "MCX_SILVER"]
+        tasks = [self.fetch_yahoo_price(symbols[a]) for a in assets_to_fetch]
+        fetched_prices = await asyncio.gather(*tasks)
+        
+        for asset, price in zip(assets_to_fetch, fetched_prices):
+            if price:
+                calibrated_price = price
+                
+                # --- LIVE CALIBRATION (Aligned with Brokerage Data) ---
+                if asset == "MCX_GOLD":
+                    # Calibrating GOLDBEES to 154k range
+                    calibrated_price = price * 1240  
+                
+                elif asset == "MCX_SILVER":
+                    # Calibrating SILVERBEES to 324k range
+                    calibrated_price = price * 1175  
+                
+                results.append({
+                    "asset": asset, 
+                    "price": float(calibrated_price), 
+                    "source": "yfinance"
+                })
+                
+        return results
+
+    async def run(self):
+        print("\n🚀 SENTINEL ENGINE: MULTI-ASSET CORE LIVE (BROKERAGE ALIGNED)\n" + "═"*60)
+        while True:
+            payload = await self.fetch_all()
+            for data in payload:
+                regime, z_score = self.brain.classify(data['asset'], data['price'])
+                data.update({
+                    'regime': regime, 
+                    'z_score': z_score, 
+                    'timestamp': datetime.now(timezone.utc).isoformat()
+                })
+                try:
+                    await self.supabase.table("multi_asset_telemetry").insert(data).execute()
+                    print(f"📡 SYNC | {data['asset']:<10} | Price: {data['price']:,.2f} | [{regime}]")
+                except Exception as e:
+                    print(f"❌ Cloud Sync Error: {e}")
+            
+            # 30s Governance Heartbeat
+            await asyncio.sleep(30)
+
+if __name__ == "__main__":
+    async def main():
+        engine = await MultiAssetPulse.create()
+        try: 
+            await engine.run()
+        finally: 
+            await engine.binance.close()
+
+    async def safe_run():
+        """Resilient entry point to handle network drops."""
+        while True:
+            try:
+                await main()
+            except Exception as e:
+                print(f"🔄 Restarting Engine in 10s due to connection drop: {e}")
+                await asyncio.sleep(10)
+
+    asyncio.run(safe_run())
+========================================
+
+FILE: export_filecode.py
+----------------------------------------
+import pathlib
+
+def export_project_to_txt(output_filename="project_dump.txt"):
+    # Configurations
+    exclude_dirs = {".venv", ".git", "__pycache__", ".vscode", "node_modules", ".idea"}
+    exclude_ext = {".pyc", ".exe", ".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip", ".sqlite3", ".log"}
+    
+    root_dir = pathlib.Path(".")
+    output_file = root_dir / output_filename
+
+    with open(output_file, "w", encoding="utf-8") as f_out:
+        f_out.write(f"PROJECT EXPORT: {root_dir.absolute().name}\n")
+        f_out.write("=" * 60 + "\n\n")
+
+        # Recursive walk through all files
+        for path in sorted(root_dir.rglob('*')):
+            # Skip the output file itself and excluded directories
+            if path.name == output_filename or any(part in exclude_dirs for part in path.parts):
+                continue
+
+            # Process only files with allowed extensions
+            if path.is_file() and path.suffix.lower() not in exclude_ext:
+                try:
+                    content = path.read_text(encoding="utf-8")
+                    
+                    f_out.write(f"FILE: {path.relative_to(root_dir)}\n")
+                    f_out.write("-" * 60 + "\n")
+                    f_out.write(content)
+                    f_out.write("\n\n" + "=" * 60 + "\n\n")
+                    
+                    print(f"✔ Added: {path.relative_to(root_dir)}")
+                except (UnicodeDecodeError, PermissionError):
+                    # Silently skip files that aren't text-based
+                    continue
+
+    print(f"\nDone! All code has been exported to: {output_filename}")
+
+if __name__ == "__main__":
+    export_project_to_txt()
+========================================
+
+FILE: README.md
+----------------------------------------
+SENTINEL PRIME v2.0
+Institutional Multi-Asset Governance: Cloud-Native AI Sentiment & Quantitative Telemetry
+Live Dashboard:
+
+Sentinel Prime is a distributed risk governance infrastructure designed for high-frequency volatility environments. It synchronizes local Edge Computing (ASUS TUF) with a Global Cloud Vault (Supabase) to enforce capital preservation through real-time cross-asset analysis (XAU, BTC, MCX) and narrative intelligence.
+
+🏛️ Governance Philosophy
+Sentinel Prime mitigates "Single Point of Failure" risk via a Hybrid Distributed System:
+
+Edge-to-Cloud Sync: Real-time price telemetry and AI-driven narrative scores are fused in a centralized SQL node.
+
+Multi-Asset Correlation: Simultaneously monitors Gold, Silver, and Bitcoin to detect systemic liquidity shifts.
+
+Governance-as-Code: Implements a remote Kill Switch protocol for immediate engine termination via cloud command.
+
+🧠 System Architecture
+1. Multi-Asset Pulse Engine (Edge)
+The engine runs locally to leverage hardware threading for simultaneous fetching:
+
+Asset Matrix: Real-time monitoring of XAU/USD, XAG/USD, BTC/USD, and MCX (Gold/Silver).
+
+Regime Classification: Statistical Z-Score modeling classifies assets as STABLE, STRESS, or ANOMALY.
+
+2. AI Narrative Sentinel (NLP)
+A dedicated Transformer-based process for zero-latency sentiment extraction:
+
+FinBERT Integration: Processes institutional news feeds to generate a Geopolitical Stress Score.
+
+Narrative Fusion: AI scores are combined with price dispersion for a 360-degree risk view.
+
+3. Cloud Command Center (Streamlit)
+A global UI that serves as the "Executive Face" of the system:
+
+URL:https://sentinel-prime-governance.streamlit.app/
+
+Real-time Heartbeat: Monitoring connection health between the Edge Node and the Cloud.
+
+📂 Project Structure
+🚀 Deployment & Local Operation
+1. Initialize the Edge Infrastructure
+Launch the parallel engines in separate terminals on your local hardware:
+
+Terminal 1: Multi-Asset Pulse
+
+Terminal 2: AI Sentiment Sentinel
+
+2. Monitor Globally
+Access the live Command Center at to view real-time risk telemetry from any device.
+
+👤 Author
+Hemant Verma Quantitative Risk Architect Building governance-first financial systems at the intersection of AI, Market Microstructure, and Cloud Infrastructure.
+========================================
+
