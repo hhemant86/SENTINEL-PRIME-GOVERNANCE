@@ -1,51 +1,43 @@
-SENTINEL PRIME v2.0
-Institutional Multi-Asset Governance: Cloud-Native AI Sentiment & Quantitative Telemetry
-Live Dashboard:
+# Sentinel Prime  
+## Governance Shell (Subsumed by ORION-CORE)
 
-Sentinel Prime is a distributed risk governance infrastructure designed for high-frequency volatility environments. It synchronizes local Edge Computing (ASUS TUF) with a Global Cloud Vault (Supabase) to enforce capital preservation through real-time cross-asset analysis (XAU, BTC, MCX) and narrative intelligence.
+Sentinel Prime is a **governance shell** originally developed to enforce
+risk constraints and auditability above market intelligence systems.
 
-🏛️ Governance Philosophy
-Sentinel Prime mitigates "Single Point of Failure" risk via a Hybrid Distributed System:
+It is now **fully subsumed by ORION-CORE** and maintained as a
+conceptual and historical subsystem.
 
-Edge-to-Cloud Sync: Real-time price telemetry and AI-driven narrative scores are fused in a centralized SQL node.
+---
 
-Multi-Asset Correlation: Simultaneously monitors Gold, Silver, and Bitcoin to detect systemic liquidity shifts.
+## Role Within ORION
 
-Governance-as-Code: Implements a remote Kill Switch protocol for immediate engine termination via cloud command.
+Sentinel Prime represents the **governance layer** responsible for:
+- interpreting risk regimes,
+- enforcing deterministic constraints,
+- recording audit evidence.
 
-🧠 System Architecture
-1. Multi-Asset Pulse Engine (Edge)
-The engine runs locally to leverage hardware threading for simultaneous fetching:
+All active governance logic now resides in **ORION-CORE**.
 
-Asset Matrix: Real-time monitoring of XAU/USD, XAG/USD, BTC/USD, and MCX (Gold/Silver).
+---
 
-Regime Classification: Statistical Z-Score modeling classifies assets as STABLE, STRESS, or ANOMALY.
+## Capabilities (Conceptual)
 
-2. AI Narrative Sentinel (NLP)
-A dedicated Transformer-based process for zero-latency sentiment extraction:
+- Regime-aware constraint enforcement
+- Non-discretionary veto logic
+- Decision audit logging
+- Governance state propagation
 
-FinBERT Integration: Processes institutional news feeds to generate a Geopolitical Stress Score.
+---
 
-Narrative Fusion: AI scores are combined with price dispersion for a 360-degree risk view.
+## Current Status
 
-3. Cloud Command Center (Streamlit)
-A global UI that serves as the "Executive Face" of the system:
+- Development: dormant
+- Live dashboards: inactive
+- Function: architectural reference only
 
-URL:https://sentinel-prime-governance.streamlit.app/
+---
 
-Real-time Heartbeat: Monitoring connection health between the Edge Node and the Cloud.
+## Note
 
-📂 Project Structure
-🚀 Deployment & Local Operation
-1. Initialize the Edge Infrastructure
-Launch the parallel engines in separate terminals on your local hardware:
-
-Terminal 1: Multi-Asset Pulse
-
-Terminal 2: AI Sentiment Sentinel
-
-2. Monitor Globally
-Access the live Command Center at to view real-time risk telemetry from any device.
-
-👤 Author
-Hemant Verma Quantitative Risk Architect Building governance-first financial systems at the intersection of AI, Market Microstructure, and Cloud Infrastructure.
+Sentinel Prime should be evaluated only as part of the broader
+**ORION-CORE governance architecture**, not as a standalone system.
